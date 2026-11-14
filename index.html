@@ -3,102 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Earth Juke Box</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <title>Earth Jukebox // NASA EIC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <div class="background-animation"></div>
-
-    <header>
-        <h1>🌍 EARTH JUKE BOX</h1>
-        <p>Discover the hidden sounds of our planet.</p>
-    </header>
-
-    <main>
-        <section class="welcome">
-            <h2>Welcome to Earth Juke Box</h2>
-            <p>Explore nature through sound. Discover the beauty of our environment by translating colors into music.</p>
-            <button onclick="goToExplorer()" aria-label="Scroll to explorer section">Start Exploring</button>
-        </section>
-
-        <section id="explorer" class="explorer">
-            <h2>🌿 Image Sonification</h2>
-            <p>Upload a NASA Earth image to hear its colors translated into a musical soundscape.</p>
-
-            <div class="glass-box upload-box">
-                <div class="upload-actions">
-                    <label for="imageInput" class="upload-label" tabindex="0">📷 Choose an Image</label>
-                    <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
-                    <button class="demo-btn" onclick="loadDemoImage()">Load Demo Pattern</button>
-                    <!-- NEW BUTTON: Fetch EPIC Earth Image -->
-                    <button class="epic-btn" onclick="fetchEpicEarth()">🛰️ Fetch Latest Earth</button>
-                </div>
-
-                <div class="image-container">
-                    <img id="imagePreview" alt="Your uploaded image" crossorigin="anonymous">
-                    <canvas id="playheadCanvas"></canvas>
-                </div>
-
-                <canvas id="imageCanvas" style="display:none;"></canvas>
-
-                <div class="controls-row">
-                    <button id="playButton" onclick="playSound()" disabled>▶ Play</button>
-                    <button id="stopButton" onclick="stopSound()" disabled>■ Stop</button>
-                    <div class="volume-control">
-                        <label for="volume">Volume</label>
-                        <input type="range" id="volume" min="0" max="100" value="40">
-                    </div>
-                </div>
-
-                <p id="status" aria-live="polite">Please upload an image, load the demo, or fetch Earth from space to begin.</p>
+    <!-- Top Navigation Bar -->
+    <nav class="top-nav">
+        <div class="logo-area">
+            <div class="orbital-icon">◉</div>
+            <h1>EARTH JUKEBOX <span>// NASA EIC</span></h1>
+        </div>
+        
+        <div class="dataset-selector">
+            <select aria-label="Select Dataset" onchange="updateImage(this.selectedIndex)">
+                <option>Global Sea Surface Temperature Anomalies (1980–2026)</option>
+                <option>Arctic Sea Ice Extent</option>
+                <option>Atmospheric CO2</option>
+                <option>Global Wildfire Hotspots</option>
+                <option>Live Malaysia Hourly Weather (EIC)</option>
+            </select>
+            <div class="quick-pills">
+                <button class="pill active" onclick="updateImage(0)">SST Anomalies</button>
+                <button class="pill" onclick="updateImage(1)">Sea Ice</button>
+                <button class="pill" onclick="updateImage(2)">CO2</button>
+                <button class="pill" onclick="updateImage(3)">Wildfires</button>
+                <button class="pill" onclick="updateImage(4)">🇲🇾 Live Malaysia</button>
             </div>
+        </div>
 
-            <div class="glass-box sound-box">
-                <h2>🎵 Soundscape Status</h2>
-                <p id="soundDescription" aria-live="polite">Your environmental sound will appear here.</p>
-            </div>
-        </section>
-
-        <!-- === REAL-TIME DATA SECTION === -->
-        <section class="data-section">
-            <h2>🌍 Real-Time Earth Data</h2>
-            <p>Discover the current weather and air quality of our planet.</p>
+        <div class="accessibility-bar">
+            <label for="userUpload" class="acc-btn" tabindex="0">📷 Upload Image</label>
+            <input type="file" id="userUpload" accept="image/*" onchange="handleUserUpload(event)" style="display:none;">
             
-            <div class="glass-box data-controls">
-                <div class="search-box">
-                    <input type="text" id="cityInput" placeholder="City (e.g., Klang)">
-                    <input type="text" id="countryInput" placeholder="Country (e.g., Malaysia)">
-                    <button onclick="searchCity()">Search</button>
+            <button class="acc-btn" onclick="toggleHighContrast()">High-Contrast Mode</button>
+            <button class="acc-btn" onclick="showShortcuts()">Keyboard Shortcuts (?)</button>
+        </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        
+        <!-- Left/Center Stage (65%) -->
+        <section class="visual-stage">
+            <div class="viewport-container">
+                <div class="map-wrapper" id="mapWrapper">
+                    <canvas id="mainVisualCanvas"></canvas>
+                    <canvas id="playheadCanvas"></canvas>
+                    <canvas id="waveformCanvas" class="overlay-canvas"></canvas>
                 </div>
-                <p class="or-text">— OR —</p>
-                <button class="location-btn" onclick="getLocation()">📍 Use My Current Location</button>
             </div>
 
-            <div id="earthDataResults" class="glass-box data-results" style="display: none;">
-                <h3 id="locationName">Location Name</h3>
-                <div class="data-grid">
-                    <div class="data-card">
-                        <h4>🌡️ Temperature</h4>
-                        <p id="tempData">-- °C</p>
-                    </div>
-                    <div class="data-card">
-                        <h4>🌬️ Wind Speed</h4>
-                        <p id="windData">-- km/h</p>
-                    </div>
-                    <div class="data-card">
-                        <h4>🍃 Air Quality</h4>
-                        <p id="airData">-- µg/m³</p>
+            <!-- Bottom Jukebox Transport Controls -->
+            <div class="transport-controls">
+                <div class="main-buttons">
+                    <button class="icon-btn" onclick="changeDataset(-1)">⏮</button>
+                    <button id="playButton" class="play-btn" onclick="togglePlay()">▶</button>
+                    <button id="stopButton" class="icon-btn" onclick="stopSound()">⏹</button>
+                    <button class="icon-btn" onclick="changeDataset(1)">⏭</button>
+                </div>
+                
+                <div class="timeline">
+                    <span class="time-marker">1980</span>
+                    <input type="range" id="timelineScrubber" class="timeline-scrubber" min="0" max="100" value="0">
+                    <span class="time-marker">2026</span>
+                </div>
+
+                <div class="master-controls">
+                    <select id="speedSelect" class="speed-selector">
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="2">2x</option>
+                    </select>
+                    <div class="volume-wrap">
+                        <span id="muteIcon" style="cursor:pointer;" onclick="toggleMute()">🔊</span>
+                        <input type="range" id="volume" min="0" max="100" value="60">
                     </div>
                 </div>
             </div>
         </section>
 
+        <!-- Right Sidebar (35%) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>SONIFICATION PHYSICS MAPPING</h2>
+                <div class="preset-toggle">
+                    <button id="btnHarmonic" class="preset-btn active" onclick="switchMode('harmonic')">Musical Harmonic</button>
+                    <button id="btnRaw" class="preset-btn" onclick="switchMode('raw')">Raw Scientific</button>
+                </div>
+            </div>
+
+            <div class="mapping-cards">
+                <div class="data-card">
+                    <h3>Thermal Intensity → Pitch (Hz)</h3>
+                    <div class="telemetry-row">
+                        <span class="value coral" id="tempVal">+1.84°C</span>
+                        <span class="arrow">→</span>
+                        <span class="value cyan" id="freqVal">0.00 Hz</span>
+                    </div>
+                    <div class="bar-container"><div class="bar-fill cyan" id="pitchBar" style="width: 0%;"></div></div>
+                </div>
+
+                <div class="data-card">
+                    <h3>Anomaly Coverage → Amplitude (dB)</h3>
+                    <div class="telemetry-row">
+                        <span class="value">68% Area</span>
+                        <span class="arrow">→</span>
+                        <span class="value cyan" id="dbVal">-∞ dB</span>
+                    </div>
+                    <div class="vu-meter-container">
+                        <div class="vu-meter-fill cyan" id="vuMeter"></div>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <h3>Hemisphere Balance → Stereo Pan</h3>
+                    <div class="telemetry-row">
+                        <span class="value" id="panVal">Center</span>
+                    </div>
+                    <div class="pan-slider-container">
+                        <span>L</span>
+                        <div class="pan-track"><div class="pan-knob" id="panKnob"></div></div>
+                        <span>R</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
     </main>
 
-    <footer>
-        <p>🌍 Earth Juke Box | Discover and appreciate our planet.</p>
+    <footer class="description-panel">
+        <div class="panel-header" onclick="togglePanel()" style="cursor: pointer;">
+            <h4>Audio Scene Description (Screen-Reader Live Log)</h4>
+            <span class="toggle-icon">▼</span>
+        </div>
+        <div class="panel-content">
+            <p id="liveNarration">Ready. Press Play to begin sonification.</p>
+        </div>
     </footer>
 
     <script src="script.js"></script>
