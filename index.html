@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Juke Box</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="background-animation"></div>
+
+    <header>
+        <h1>🌍 EARTH JUKE BOX</h1>
+        <p>Discover the hidden sounds of our planet.</p>
+    </header>
+
+    <main>
+        <section class="welcome">
+            <h2>Welcome to Earth Juke Box</h2>
+            <p>Explore nature through sound. Discover the beauty of our environment by translating colors into music.</p>
+            <button onclick="goToExplorer()" aria-label="Scroll to explorer section">Start Exploring</button>
+        </section>
+
+        <section id="explorer" class="explorer">
+            <h2>🌿 Image Sonification</h2>
+            <p>Upload a NASA Earth image to hear its colors translated into a musical soundscape.</p>
+
+            <div class="glass-box upload-box">
+                <div class="upload-actions">
+                    <label for="imageInput" class="upload-label" tabindex="0">📷 Choose an Image</label>
+                    <input type="file" id="imageInput" accept="image/*" onchange="previewImage(event)">
+                    <button class="demo-btn" onclick="loadDemoImage()">Load Demo Pattern</button>
+                    <!-- NEW BUTTON: Fetch EPIC Earth Image -->
+                    <button class="epic-btn" onclick="fetchEpicEarth()">🛰️ Fetch Latest Earth</button>
+                </div>
+
+                <div class="image-container">
+                    <img id="imagePreview" alt="Your uploaded image" crossorigin="anonymous">
+                    <canvas id="playheadCanvas"></canvas>
+                </div>
+
+                <canvas id="imageCanvas" style="display:none;"></canvas>
+
+                <div class="controls-row">
+                    <button id="playButton" onclick="playSound()" disabled>▶ Play</button>
+                    <button id="stopButton" onclick="stopSound()" disabled>■ Stop</button>
+                    <div class="volume-control">
+                        <label for="volume">Volume</label>
+                        <input type="range" id="volume" min="0" max="100" value="40">
+                    </div>
+                </div>
+
+                <p id="status" aria-live="polite">Please upload an image, load the demo, or fetch Earth from space to begin.</p>
+            </div>
+
+            <div class="glass-box sound-box">
+                <h2>🎵 Soundscape Status</h2>
+                <p id="soundDescription" aria-live="polite">Your environmental sound will appear here.</p>
+            </div>
+        </section>
+
+        <!-- === REAL-TIME DATA SECTION === -->
+        <section class="data-section">
+            <h2>🌍 Real-Time Earth Data</h2>
+            <p>Discover the current weather and air quality of our planet.</p>
+            
+            <div class="glass-box data-controls">
+                <div class="search-box">
+                    <input type="text" id="cityInput" placeholder="City (e.g., Klang)">
+                    <input type="text" id="countryInput" placeholder="Country (e.g., Malaysia)">
+                    <button onclick="searchCity()">Search</button>
+                </div>
+                <p class="or-text">— OR —</p>
+                <button class="location-btn" onclick="getLocation()">📍 Use My Current Location</button>
+            </div>
+
+            <div id="earthDataResults" class="glass-box data-results" style="display: none;">
+                <h3 id="locationName">Location Name</h3>
+                <div class="data-grid">
+                    <div class="data-card">
+                        <h4>🌡️ Temperature</h4>
+                        <p id="tempData">-- °C</p>
+                    </div>
+                    <div class="data-card">
+                        <h4>🌬️ Wind Speed</h4>
+                        <p id="windData">-- km/h</p>
+                    </div>
+                    <div class="data-card">
+                        <h4>🍃 Air Quality</h4>
+                        <p id="airData">-- µg/m³</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>🌍 Earth Juke Box | Discover and appreciate our planet.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
