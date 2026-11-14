@@ -1,375 +1,399 @@
-// ==================================
-// Global Variables
-// ==================================
 let uploadedImage = null;
 let audioContext = null;
 let playheadInterval = null;
+let visualizerInterval = null;
+let isPlaying = false;
+let isMuted = false;
+let isPanelOpen = true;
+let isWaitingForVoice = false; 
+let liveMalaysiaData = null; 
+let isRawScientific = false; 
+
+const datasets = [
+    { name: "SST Anomalies", color1: "#00D2FF", color2: "#FF6B35" },
+    { name: "Arctic Sea Ice Extent", color1: "#E2E8F0", color2: "#1E3A8A" },
+    { name: "Atmospheric CO2", color1: "#FF6B35", color2: "#7F1D1D" },
+    { name: "Global Wildfire Hotspots", color1: "#FBBF24", color2: "#DC2626" },
+    { name: "Live Malaysia Weather", color1: "#00D2FF", color2: "#00FF88" }
+];
+let currentDatasetIndex = 0;
+
+window.onload = () => {
+    document.getElementById("playButton").disabled = false; 
+    updateImage(0); 
+};
 
 // ==================================
-// Navigation & Image Upload
+// Audio Narration
 // ==================================
-function goToExplorer() {
-    document.getElementById("explorer").scrollIntoView({ behavior: "smooth" });
+function speakTextPromise(text) {
+    return new Promise((resolve) => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); 
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.1;
+            utterance.onend = () => resolve();
+            utterance.onerror = () => resolve(); 
+            window.speechSynthesis.speak(utterance);
+        } else {
+            resolve(); 
+        }
+    });
 }
 
-function previewImage(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return alert("Please select a valid image.");
-
-    const imageURL = URL.createObjectURL(file);
-    const preview = document.getElementById("imagePreview");
-
-    preview.onload = function () {
-        uploadedImage = preview;
-        preview.style.display = "inline-block"; 
-        enableControls();
-        resizePlayheadCanvas();
-        
-        document.getElementById("status").textContent = "Image uploaded successfully! Ready to play.";
-        document.getElementById("soundDescription").textContent = "Press 'Play' to hear the image.";
-    };
-    preview.src = imageURL;
+// ==================================
+// Live Malaysia EIC API
+// ==================================
+async function fetchLiveMalaysiaData() {
+    try {
+        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=3.1390&longitude=101.6869&current_weather=true");
+        const data = await res.json();
+        liveMalaysiaData = {
+            temp: data.current_weather.temperature,
+            wind: data.current_weather.windspeed
+        };
+        document.getElementById("tempVal").textContent = `+${liveMalaysiaData.temp.toFixed(1)}°C`;
+        document.getElementById("liveNarration").textContent = `Live Malaysia (KL): Temp ${liveMalaysiaData.temp}°C, Wind ${liveMalaysiaData.wind} km/h.`;
+    } catch (e) {
+        liveMalaysiaData = { temp: 30.0, wind: 5.0 }; 
+    }
 }
 
-function loadDemoImage() {
-    const canvas = document.createElement("canvas");
-    canvas.width = 800;
-    canvas.height = 500;
+// ==================================
+// Mode Switching
+// ==================================
+function switchMode(mode) {
+    const btnHarmonic = document.getElementById("btnHarmonic");
+    const btnRaw = document.getElementById("btnRaw");
+    
+    if (mode === 'raw') {
+        isRawScientific = true;
+        btnRaw.classList.add("active");
+        btnHarmonic.classList.remove("active");
+        document.getElementById("liveNarration").textContent = "Switched to Raw Scientific Mode. Note: This mode is simulated for the demo.";
+    } else {
+        isRawScientific = false;
+        btnHarmonic.classList.add("active");
+        btnRaw.classList.remove("active");
+        document.getElementById("liveNarration").textContent = "Switched to Musical Harmonic Mode.";
+    }
+}
+
+// ==================================
+// Dataset Visuals & Uploads
+// ==================================
+function updateImage(index) {
+    stopSound();
+    currentDatasetIndex = index;
+    const ds = datasets[index];
+    
+    if (index === 4) {
+        fetchLiveMalaysiaData();
+    } else {
+        document.getElementById("tempVal").textContent = "+1.84°C";
+    }
+
+    const canvas = document.getElementById("mainVisualCanvas");
+    canvas.width = 800; canvas.height = 450;
     const ctx = canvas.getContext("2d");
-
-    ctx.fillStyle = "black";
+    
+    ctx.fillStyle = "#0B0E14";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+    
     ctx.save();
     ctx.beginPath();
-    ctx.ellipse(canvas.width / 2, canvas.height / 2, 300, 200, 0, 0, Math.PI * 2);
+    ctx.ellipse(canvas.width / 2, canvas.height / 2, 300, 180, 0, 0, Math.PI * 2);
     ctx.clip();
-
-    let grad1 = ctx.createRadialGradient(200, 250, 50, 200, 250, 400);
-    grad1.addColorStop(0, "#00ff00");
-    grad1.addColorStop(1, "#0000ff");
-    ctx.fillStyle = grad1;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    let grad2 = ctx.createRadialGradient(600, 200, 20, 600, 200, 300);
-    grad2.addColorStop(0, "#ff0000");
-    grad2.addColorStop(1, "transparent");
-    ctx.fillStyle = grad2;
+    
+    const c1 = index === 4 ? "#FF6B35" : ds.color1;
+    const c2 = index === 4 ? "#FF0000" : ds.color2;
+    
+    const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 50, canvas.width / 2, canvas.height / 2, 300);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
-
-    const preview = document.getElementById("imagePreview");
-    preview.onload = function() {
-        uploadedImage = preview;
-        preview.style.display = "inline-block";
-        enableControls();
-        resizePlayheadCanvas();
-        
-        document.getElementById("status").textContent = "Demo pattern loaded! Press 'Play'.";
-        document.getElementById("soundDescription").textContent = "Ready to play demo.";
-    };
-    preview.src = canvas.toDataURL();
+    
+    uploadedImage = canvas;
+    resizePlayheadCanvas();
+    
+    if (index !== 4) {
+        document.getElementById("liveNarration").textContent = `Loaded dataset: ${ds.name}`;
+    }
+    
+    resetTelemetryUI();
+    document.querySelectorAll('.pill').forEach((p, i) => {
+        p.classList.toggle('active', i === index);
+    });
 }
 
-function enableControls() {
-    document.getElementById("playButton").disabled = false;
-    document.getElementById("stopButton").disabled = false;
+function handleUserUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        stopSound();
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.getElementById("mainVisualCanvas");
+            canvas.width = 800; canvas.height = 450;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#000"; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            uploadedImage = canvas;
+            resizePlayheadCanvas();
+            resetTelemetryUI();
+            
+            document.getElementById("liveNarration").textContent = "Custom image uploaded successfully. Press Play.";
+            document.getElementById("tempVal").textContent = "Custom";
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function resetTelemetryUI() {
+    document.getElementById("freqVal").textContent = "0.00 Hz";
+    document.getElementById("pitchBar").style.width = "0%";
+    document.getElementById("dbVal").textContent = "-∞ dB";
+    document.getElementById("vuMeter").style.width = "0%";
+    document.getElementById("panVal").textContent = "Center";
+    document.getElementById("panKnob").style.left = "50%";
 }
 
 function resizePlayheadCanvas() {
-    const img = document.getElementById("imagePreview");
-    const canvas = document.getElementById("playheadCanvas");
-    canvas.width = img.clientWidth;
-    canvas.height = img.clientHeight;
+    const mainCanvas = document.getElementById("mainVisualCanvas");
+    const playCanvas = document.getElementById("playheadCanvas");
+    const waveCanvas = document.getElementById("waveformCanvas");
+    playCanvas.width = mainCanvas.width; playCanvas.height = mainCanvas.height;
+    waveCanvas.width = mainCanvas.width; waveCanvas.height = mainCanvas.height;
+}
+
+function changeDataset(direction) {
+    let newIndex = currentDatasetIndex + direction;
+    if (newIndex >= datasets.length) newIndex = 0;
+    if (newIndex < 0) newIndex = datasets.length - 1;
+    updateImage(newIndex);
 }
 
 // ==================================
-// NEW: Fetch Latest Earth from NASA EPIC (Blob Method)
+// Keyboard Shortcuts & Accessibility
 // ==================================
-function fetchEpicEarth() {
-    const status = document.getElementById("status");
-    status.textContent = "Contacting NASA satellites...";
+function toggleHighContrast() { document.body.classList.toggle("high-contrast"); }
 
-    const apiKey = "DEMO_KEY"; 
-    const url = `https://api.nasa.gov/EPIC/api/natural?api_key=${apiKey}`;
-
-    fetch(url)
-        .then(response => {
-            if (!response.ok) throw new Error("NASA API returned an error.");
-            return response.json();
-        })
-        .then(data => {
-            if (data.length === 0) {
-                status.textContent = "No recent Earth images available from EPIC.";
-                return;
-            }
-
-            const latest = data[0];
-            const dateStr = latest.date.split(" ")[0]; 
-            const [year, month, day] = dateStr.split("-");
-            const imageName = latest.image;
-
-            const imageUrl = `https://epic.gsfc.nasa.gov/archive/natural/${year}/${month}/${day}/png/${imageName}.png`;
-
-            status.textContent = `Loading Earth image from ${dateStr}...`;
-
-            fetch(imageUrl)
-                .then(res => {
-                    if (!res.ok) throw new Error("Could not download the image.");
-                    return res.blob();
-                })
-                .then(blob => {
-                    const localUrl = URL.createObjectURL(blob);
-                    const preview = document.getElementById("imagePreview");
-                    
-                    preview.onload = function() {
-                        uploadedImage = preview;
-                        preview.style.display = "inline-block";
-                        enableControls();
-                        resizePlayheadCanvas();
-                        
-                        status.textContent = `Latest Earth image loaded (${dateStr}). Press 'Play' to hear it!`;
-                        document.getElementById("soundDescription").textContent = "Ready to sonify the real Earth.";
-                    };
-                    
-                    preview.src = localUrl;
-                })
-                .catch(err => {
-                    console.error("Blob fetch error:", err);
-                    status.textContent = "NASA blocked the image download. Please upload a local image instead.";
-                });
-        })
-        .catch(error => {
-            console.error("EPIC API error:", error);
-            status.textContent = "Could not reach NASA. Check your internet connection.";
-        });
+function showShortcuts() { 
+    speakTextPromise("Keyboard shortcuts. Space to play or stop. M to mute. H for high contrast. 1 to 5 to switch datasets.").then(() => {
+        document.getElementById("liveNarration").textContent = "Shortcuts: [SPACE] Play/Stop, [M] Mute, [H] High Contrast, [1-5] Datasets.";
+    });
 }
 
+document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space') {
+        e.preventDefault(); 
+        if (isPlaying) {
+            stopSound();
+        } else if (!isWaitingForVoice) { 
+            togglePlay();
+        }
+    }
+    if (e.key.toLowerCase() === 'm') toggleMute();
+    if (e.key.toLowerCase() === 'h') toggleHighContrast();
+    if (e.key === 'Escape') stopSound();
+    
+    const num = parseInt(e.key);
+    if (num >= 1 && num <= datasets.length) {
+        updateImage(num - 1);
+        const dsName = datasets[num - 1].name;
+        let desc = `Switched to ${dsName}.`;
+        if (num === 1) desc += " Red colors represent high sea surface temperatures.";
+        if (num === 2) desc += " White and blue represent melting sea ice.";
+        if (num === 3) desc += " Dark red represents high atmospheric carbon dioxide.";
+        if (num === 4) desc += " Bright orange represents active wildfires.";
+        if (num === 5) desc += " Live weather data from Malaysia.";
+        
+        speakTextPromise(desc); 
+    }
+});
+
 // ==================================
-// Sonification Engine (Updated for Task Requirements)
+// Playback Logic
 // ==================================
-function playSound() {
-    if (!uploadedImage) return;
+function togglePlay() {
+    if (isPlaying) {
+        stopSound();
+    } else {
+        playSound();
+    }
+}
+
+async function playSound() {
+    if (!uploadedImage || isWaitingForVoice) return;
     stopSound(); 
+    isWaitingForVoice = true;
+    
+    const introText = `Starting audio sonification for ${datasets[currentDatasetIndex].name}.`;
+    document.getElementById("liveNarration").textContent = introText;
+    
+    await speakTextPromise(introText);
+    isWaitingForVoice = false; 
 
+    isPlaying = true;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!audioContext) audioContext = new AudioContext();
     if (audioContext.state === 'suspended') audioContext.resume();
 
-    const canvas = document.getElementById("imageCanvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = 40; canvas.height = 20;
-    ctx.drawImage(uploadedImage, 0, 0, 40, 20);
-    
-    let imageData;
-    try {
-        imageData = ctx.getImageData(0, 0, 40, 20).data;
-    } catch (e) {
-        alert("Unable to read image pixels. Please use the 'Choose an Image' button to upload a local file.");
-        return;
-    }
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCanvas.width = 40; tempCanvas.height = 20;
+    tempCtx.drawImage(uploadedImage, 0, 0, 40, 20);
+    const imageData = tempCtx.getImageData(0, 0, 40, 20).data;
 
     const playCanvas = document.getElementById("playheadCanvas");
     const playCtx = playCanvas.getContext("2d");
     const columnWidth = playCanvas.width / 40;
     let currentColumn = 0;
-    const volumeSlider = document.getElementById("volume").value / 100;
+    
+    const speedMultiplier = parseFloat(document.getElementById("speedSelect").value);
+    const baseInterval = 100 / speedMultiplier; 
 
-    document.getElementById("playButton").disabled = true;
-    document.getElementById("soundDescription").textContent = "Playing... sweeping left to right.";
+    const playBtn = document.getElementById("playButton");
+    playBtn.innerHTML = "⏸"; 
+    playBtn.style.background = "var(--accent-coral)";
+    playBtn.style.boxShadow = "0 0 15px rgba(255, 107, 53, 0.5)";
 
-    // Create a master volume node for the whole soundscape
-    const masterGain = audioContext.createGain();
-    masterGain.gain.value = volumeSlider;
-    masterGain.connect(audioContext.destination);
+    startVisualizer();
 
     playheadInterval = setInterval(() => {
         if (currentColumn >= 40) {
             stopSound();
-            document.getElementById("soundDescription").textContent = "Playback finished.";
             return;
         }
 
-        // 1. Visual Playhead
         playCtx.clearRect(0, 0, playCanvas.width, playCanvas.height); 
         playCtx.beginPath();
         playCtx.moveTo(currentColumn * columnWidth, 0);
         playCtx.lineTo(currentColumn * columnWidth, playCanvas.height);
-        playCtx.strokeStyle = "#B8E986";
+        
+        // WHITE PLAYHEAD LINE
+        playCtx.strokeStyle = "#FFFFFF";
         playCtx.lineWidth = 3; 
         playCtx.stroke();
 
-        // 2. Analyze the Column (Color, Brightness, Density)
+        document.getElementById("timelineScrubber").value = (currentColumn / 40) * 100;
+
         let r = 0, g = 0, b = 0;
-        let dataDensity = 0; // How much of the column is not black
+        let dataDensity = 0; 
 
         for (let row = 0; row < 20; row++) {
             let index = (row * 40 + currentColumn) * 4;
             let pixelBrightness = (imageData[index] + imageData[index + 1] + imageData[index + 2]) / 3;
-            
-            r += imageData[index]; 
-            g += imageData[index + 1]; 
-            b += imageData[index + 2];
-
+            r += imageData[index]; g += imageData[index + 1]; b += imageData[index + 2];
             if (pixelBrightness > 30) dataDensity++;
         }
         r /= 20; g /= 20; b /= 20;
         const avgBrightness = (r + g + b) / 3;
+        const volume = isMuted ? 0 : document.getElementById("volume").value / 100;
 
-        // 3. Map to Audio Parameters
         if (avgBrightness > 25) { 
-            // PENTATONIC SCALE (Always sounds musical)
             const pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25]; 
-            
-            // MAPPING: Warmth (Red vs Blue) -> Pitch
             let warmth = r / (b + 1); 
             let noteIndex = Math.floor(warmth * 2); 
+            
+            if (currentDatasetIndex === 4 && liveMalaysiaData) {
+                noteIndex = Math.round((liveMalaysiaData.temp - 25) / 2); 
+            }
+            
             noteIndex = Math.max(0, Math.min(noteIndex, pentatonic.length - 1));
             
-            // MAPPING: Pixel Density -> Volume (Loudness)
-            // If the column is full of data, it plays louder.
             const densityVolume = (dataDensity / 20) * 0.8; 
+            
+            const oscType = isRawScientific ? "sawtooth" : (avgBrightness > 120 ? "triangle" : "sine");
 
-            // MAPPING: Brightness -> Instrumentation (Oscillator Type)
-            // Darker areas sound smooth (sine), brighter areas sound sharper (triangle)
-            const oscType = avgBrightness > 120 ? "triangle" : "sine";
-
-            // Main Melody Note
             const osc = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             osc.type = oscType; 
             osc.frequency.setValueAtTime(pentatonic[noteIndex], audioContext.currentTime);
             
             gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-            gainNode.gain.linearRampToValueAtTime(densityVolume, audioContext.currentTime + 0.05);
+            gainNode.gain.linearRampToValueAtTime(densityVolume * volume, audioContext.currentTime + 0.05);
             gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.25);
 
             osc.connect(gainNode); 
-            gainNode.connect(masterGain);
+            gainNode.connect(audioContext.destination);
             osc.start(); 
             osc.stop(audioContext.currentTime + 0.25);
 
-            // Harmonic Bass Drone (Plays on every 5th column for a rhythm)
-            if (currentColumn % 5 === 0) {
-                const bassOsc = audioContext.createOscillator();
-                const bassGain = audioContext.createGain();
-                bassOsc.type = "sine";
-                // Bass note is one octave lower than the melody
-                bassOsc.frequency.setValueAtTime(pentatonic[0] / 2, audioContext.currentTime);
-                
-                bassGain.gain.setValueAtTime(0, audioContext.currentTime);
-                bassGain.gain.linearRampToValueAtTime(densityVolume * 1.5, audioContext.currentTime + 0.1);
-                bassGain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.4);
-
-                bassOsc.connect(bassGain);
-                bassGain.connect(masterGain);
-                bassOsc.start();
-                bassOsc.stop(audioContext.currentTime + 0.4);
-            }
+            document.getElementById("freqVal").textContent = pentatonic[noteIndex].toFixed(2) + " Hz";
+            document.getElementById("pitchBar").style.width = ((noteIndex + 1) / 6 * 100) + "%";
+            document.getElementById("vuMeter").style.width = (densityVolume * 100) + "%";
+            document.getElementById("dbVal").textContent = (-10 + (densityVolume * 10)).toFixed(1) + " dB";
         }
         currentColumn++;
-    }, 100); 
+    }, baseInterval); 
 }
 
 function stopSound() {
+    isPlaying = false;
+    isWaitingForVoice = false; 
     if (playheadInterval) { clearInterval(playheadInterval); playheadInterval = null; }
+    if (visualizerInterval) { clearInterval(visualizerInterval); visualizerInterval = null; }
     if (audioContext && audioContext.state !== 'closed') { audioContext.close(); audioContext = null; }
+    
     const playCanvas = document.getElementById("playheadCanvas");
     const playCtx = playCanvas.getContext("2d");
     playCtx.clearRect(0, 0, playCanvas.width, playCanvas.height);
-    if (uploadedImage) {
-        document.getElementById("playButton").disabled = false;
-        document.getElementById("soundDescription").textContent = "Soundscape stopped.";
-    }
+    
+    const waveCanvas = document.getElementById("waveformCanvas");
+    const waveCtx = waveCanvas.getContext("2d");
+    waveCtx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+
+    const playBtn = document.getElementById("playButton");
+    playBtn.innerHTML = "▶";
+    playBtn.style.background = "var(--accent-cyan)";
+    playBtn.style.boxShadow = "0 0 15px rgba(0, 210, 255, 0.3)";
+    
+    document.getElementById("vuMeter").style.width = "0%";
 }
 
-// ==================================
-// Real-Time Earth Data
-// ==================================
-function getLocation() {
-    const resultsDiv = document.getElementById("earthDataResults");
-    const locationName = document.getElementById("locationName");
-    
-    locationName.textContent = "Detecting your location...";
-    resultsDiv.style.display = "block";
-    document.getElementById("tempData").textContent = "--";
-    document.getElementById("windData").textContent = "--";
-    document.getElementById("airData").textContent = "--";
+function startVisualizer() {
+    const waveCanvas = document.getElementById("waveformCanvas");
+    const ctx = waveCanvas.getContext("2d");
+    let offset = 0;
 
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        const city = data.address.city || data.address.town || data.address.village || "Your Location";
-                        const country = data.address.country || "";
-                        locationName.textContent = `${city}, ${country}`;
-                    })
-                    .catch(() => locationName.textContent = "Your Current Location");
-                
-                fetchWeatherAndAir(lat, lon);
-            },
-            (error) => {
-                alert("Unable to retrieve your location. Please allow location access or search for a city.");
-                resultsDiv.style.display = "none";
-            }
-        );
-    } else {
-        alert("Geolocation is not supported by this browser.");
-        resultsDiv.style.display = "none";
-    }
+    visualizerInterval = setInterval(() => {
+        if (!isPlaying) return;
+        
+        ctx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(0, 210, 255, 0.5)";
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < waveCanvas.width; i += 5) {
+            let y = waveCanvas.height / 2 + Math.sin(i * 0.05 + offset) * 30;
+            if (i === 0) ctx.moveTo(i, y);
+            else ctx.lineTo(i, y);
+        }
+        ctx.stroke();
+        offset += 0.2;
+
+        let panLeft = 50 + (Math.random() * 4 - 2);
+        document.getElementById("panKnob").style.left = panLeft + "%";
+    }, 50);
 }
 
-function searchCity() {
-    const city = document.getElementById("cityInput").value.trim();
-    const country = document.getElementById("countryInput").value.trim();
-    
-    if (!city) return alert("Please enter a city name.");
-
-    const searchQuery = country ? `${city}, ${country}` : city;
-    const resultsDiv = document.getElementById("earthDataResults");
-    const locationName = document.getElementById("locationName");
-    
-    locationName.textContent = `Searching for ${searchQuery}...`;
-    resultsDiv.style.display = "block";
-
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.length === 0) {
-                alert("Location not found. Please check your spelling.");
-                resultsDiv.style.display = "none";
-                return;
-            }
-            const lat = data[0].lat;
-            const lon = data[0].lon;
-            locationName.textContent = data[0].display_name.split(',')[0] + ", " + data[0].display_name.split(',').slice(-1)[0];
-            fetchWeatherAndAir(lat, lon);
-        })
-        .catch(err => {
-            console.error(err);
-            alert("Error finding location.");
-        });
+function toggleMute() {
+    isMuted = !isMuted;
+    document.getElementById("muteIcon").textContent = isMuted ? "🔇" : "🔊";
 }
 
-function fetchWeatherAndAir(lat, lon) {
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById("tempData").textContent = data.current_weather.temperature + " °C";
-            document.getElementById("windData").textContent = data.current_weather.windspeed + " km/h";
-        })
-        .catch(err => console.error("Weather error:", err));
-
-    fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5`)
-        .then(res => res.json())
-        .then(data => {
-            const pm25 = data.current.pm2_5;
-            document.getElementById("airData").textContent = pm25 + " µg/m³";
-        })
-        .catch(err => console.error("Air Quality error:", err));
+function togglePanel() {
+    isPanelOpen = !isPanelOpen;
+    const content = document.querySelector(".panel-content");
+    const icon = document.querySelector(".toggle-icon");
+    content.style.display = isPanelOpen ? "block" : "none";
+    icon.textContent = isPanelOpen ? "▼" : "▲";
 }
